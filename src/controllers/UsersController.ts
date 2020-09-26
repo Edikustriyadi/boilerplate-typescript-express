@@ -1,7 +1,7 @@
 import { Response, Request } from 'express';
 import Joi from 'joi';
 import { UserModel } from '../models/UserModel';
-import { IUser } from '../interfaces/UserInterface';
+import bcrypt from 'bcrypt';
 
 class UserController {
     async login(req:Request, res:Response){
@@ -12,12 +12,13 @@ class UserController {
         const { username,password } = await req.body;
         const {error} = schema.validate({ username,password });
         if(!error){
-            const findUsername:any = await UserModel.findOne({ where: { username:username} });
-            if(findUsername.password === password){
+            const findUser:any = await UserModel.findOne({ where: { username:username} });
+            const match = await bcrypt.compare(password, findUser.password);
+            if(match) {
                 res.status(200)
                 .send({
                     'message':'Succes login',
-                    'data':findUsername
+                    'data':findUser
                 });
             }else{
                 res.status(404)
@@ -40,15 +41,18 @@ class UserController {
             username:Joi.string().required(),
             password:Joi.string().required().min(8)
         });
-        const newUser = await req.body;
-        const {error} = schema.validate(newUser);
+        let {username, password} = await req.body;
+        const {error} = schema.validate({username,password});
         if(!error){
-            const result = await UserModel.create(newUser);
+            const saltRounds = 10;
+            const hash = await bcrypt.hash(password,saltRounds);
+            const result = await UserModel.create({username,password:hash});
             res.status(201)
                 .send({
-                    'message':'Created new user',
-                    'data':result
-                });
+                        'message':'Created new user',
+                        'data':result
+                    });
+            
         }else{
             res.status(400)
                 .send({
